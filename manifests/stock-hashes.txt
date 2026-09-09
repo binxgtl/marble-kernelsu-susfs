@@ -1,0 +1,7 @@
+# Sanitized hashes from the supplied audit. Payloads are not stored here.
+# sha256  object
+42c827b562da776539da12ef90e7755495b1ebd33fe16d6257e299a0530fb801  extracted-stock-kernel
+7c121279cd1dfaaf1cab74ac64720c6962d4553646f0e44ec0c3f882d243e923  boot_a-partition-dump
+3b545d9a62d2db8daf7d0dc55f3d56273949085748fea91bf069787e021dd0cd  vendor_boot_a-partition-dump
+5f0a151ba7ad5c31f8eada68fe800e738c2b0a0b230d2e505048fe0fc2576643  dtbo_a-partition-dump
+524966c3a357eadcf15411d79c2c9469d86098e071c5c81d2e0767cddc865edd  vbmeta_a-partition-dump

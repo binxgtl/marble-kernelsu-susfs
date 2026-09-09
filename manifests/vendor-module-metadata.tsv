@@ -1,0 +1,2 @@
+# source|count|vermagic|representative_modules
+vendor_boot_audit|356|5.10.160-gki-gd28eeb36ae86 SMP preempt mod_unload modversions aarch64|qcom-cpufreq-hw.ko,sched-walt.ko,mi_thermal_interface.ko,migt.ko,msm_lmh_dcvs.ko,msm_performance.ko
