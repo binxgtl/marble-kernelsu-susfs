@@ -1,0 +1,95 @@
+name: M1 baseline kernel
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/baseline-kernel.yml'
+      - 'configs/**'
+      - 'manifests/**'
+      - 'scripts/**'
+  push:
+    branches: [main, 'bringup/**']
+    paths:
+      - '.github/workflows/baseline-kernel.yml'
+      - 'configs/**'
+      - 'manifests/**'
+      - 'scripts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m1-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Record actual runner resources
+        run: |
+          mkdir -p artifacts
+          {
+            echo '### lscpu'
+            lscpu
+            echo '### memory'
+            free -h
+            echo '### disk'
+            df -hT
+            echo '### runner'
+            uname -a
+          } | tee artifacts/runner-resources.txt
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ca-certificates cpio curl dwarves flex \
+            git kmod libelf-dev libssl-dev lz4 make python3 rsync xz-utils
+
+      - name: Fetch pinned ACK source
+        run: scripts/fetch-sources.sh work
+
+      - name: Fetch pinned Android clang toolchain
+        run: scripts/setup-toolchain.sh work
+
+      - name: Build clean GKI baseline
+        env:
+          BUILD_JOBS: '2'
+        run: scripts/build-kernel.sh work artifacts
+
+      - name: Run static KMI gate
+        run: |
+          scripts/verify-kmi.sh artifacts/config manifests/vendor-module-metadata.tsv artifacts/Module.symvers
+          mv kmi-report.txt artifacts/kmi-report.txt
+
+      - name: Inspect output
+        run: scripts/inspect-artifact.sh artifacts
+
+      - name: Upload redistributable M1 artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: marble-m1-ack-5.10.236-${{ github.sha }}
+          path: |
+            artifacts/Image
+            artifacts/Image.lz4
+            artifacts/config
+            artifacts/System.map
+            artifacts/Module.symvers
+            artifacts/SHA256SUMS
+            artifacts/build-metadata.txt
+            artifacts/toolchain-version.txt
+            artifacts/runner-resources.txt
+            artifacts/kmi-report.txt
+            artifacts/build.log
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 1
