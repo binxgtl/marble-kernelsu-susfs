@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root=${1:-work}
-artifacts=${2:-artifacts}
+root=$(realpath -m "${1:-work}")
+artifacts=$(realpath -m "${2:-artifacts}")
 source_dir="$root/common"
 toolchain_dir="$root/clang-r416183b"
 out_dir="$root/out"
