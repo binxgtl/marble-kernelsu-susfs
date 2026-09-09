@@ -5,14 +5,16 @@ Reproducible kernel and platform bring-up for the Redmi Note 12 Turbo
 
 ## Current gate
 
-Only M0/M1 is in scope:
+M0/M1 is accepted. Only M2 is now in scope:
 
 - M0: private repository, pinned sources, reproducible CI, sanitized audit docs.
 - M1: clean Android Common Kernel (ACK) 5.10.236 GKI arm64 build.
+- M2: sanitized stock-module symbol/CRC comparison against the unchanged M1
+  `Module.symvers`.
 
-The baseline deliberately does **not** include Xiaomi hardware forward-ports,
+The M2 work deliberately does **not** include Xiaomi hardware forward-ports,
 KernelSU, native-Linux hardware work, a dual-boot selector, performance tuning,
-flashing, AVB changes, or partition changes.
+boot-image packaging, device tests, flashing, AVB changes, or partition changes.
 
 ## Source baseline
 
@@ -49,3 +51,5 @@ Only sanitized technical facts and hashes are retained here.
 
 See [`docs/bringup.md`](docs/bringup.md) for milestone gates and
 [`docs/assumptions.md`](docs/assumptions.md) for facts that are not yet proven.
+M2 extraction and report semantics are documented in
+[`docs/m2-kmi.md`](docs/m2-kmi.md).

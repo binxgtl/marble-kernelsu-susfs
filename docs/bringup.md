@@ -26,15 +26,21 @@ Exit: source/toolchain identity checks and repository verification pass.
 Exit: the GitHub Actions baseline job is green and its artifact is reproducible
 from the locked revisions.
 
-## M2 boundary
+## M2 — stock module CRC compatibility
 
-M1's CI check is static because proprietary vendor modules are intentionally not
-uploaded. M2 requires local analysis of the user's module directory against the
-M1 `Module.symvers`, followed by a device-side load/boot test. Until then, the
-compatibility result must say **not proven**.
+- Extract only sanitized module basenames, vermagic, dependencies, required
+  symbols, and `__versions` CRCs on a trusted local machine.
+- Cross-check kmod output against independent ELF parsing before processing the
+  complete stock set.
+- Compare every requirement with the unchanged M1 `Module.symvers`.
+- Report missing symbols independently from CRC mismatches and fail on either.
+- Keep the result **NOT BOOT-PROVEN**, even when the static CRC gate passes.
+
+Exit: all stock requirements exist with exact CRC matches in the separate M2
+workflow. No boot-image packaging or device test occurs in M2.
 
 ## Prohibited before later gates
 
-No flashing, repartitioning, AVB-state changes, KernelSU integration,
+No boot-image packaging, device test, flashing, repartitioning, AVB-state changes, KernelSU integration,
 hardware-forward-port patches, dual-boot selector, overclocking, or thermal
-policy bypass is part of M0/M1.
+policy bypass is part of M0/M1/M2.

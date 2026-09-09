@@ -47,6 +47,35 @@ cp "$out_dir/Module.symvers" "$artifacts/Module.symvers"
 cp "$root/build.log" "$artifacts/build.log"
 cp "$root/toolchain-version.txt" "$artifacts/toolchain-version.txt"
 
+module_source_list=$(mktemp)
+module_copy_list=$(mktemp)
+trap 'rm -f "$module_source_list" "$module_copy_list"' EXIT
+find "$out_dir" -type f -name '*.ko' -printf '%P\n' | LC_ALL=C sort >"$module_source_list"
+module_count=$(wc -l <"$module_source_list")
+module_config_count=$(grep -c '=m$' "$out_dir/.config" || true)
+if (( module_config_count > 0 && module_count == 0 )); then
+  echo ".config enables $module_config_count modular options but the build produced no .ko files" >&2
+  exit 1
+fi
+
+mkdir -p "$artifacts/modules"
+rsync -a --delete --include='*/' --include='*.ko' --exclude='*' \
+  "$out_dir/" "$artifacts/modules/"
+find "$artifacts/modules" -type f -name '*.ko' -printf '%P\n' |
+  LC_ALL=C sort >"$module_copy_list"
+if ! cmp -s "$module_source_list" "$module_copy_list"; then
+  echo "module artifact copy does not match the build output" >&2
+  diff -u "$module_source_list" "$module_copy_list" >&2 || true
+  exit 1
+fi
+cp "$module_source_list" "$artifacts/modules-list.txt"
+(
+  cd "$artifacts"
+  while IFS= read -r module; do
+    sha256sum "modules/$module"
+  done <modules-list.txt >modules-SHA256SUMS
+)
+
 kernel_release=$(make -s "${make_args[@]}" kernelrelease)
 lto_mode=$(grep -q '^CONFIG_LTO_CLANG_THIN=y$' "$out_dir/.config" && printf thin || printf full)
 config_sha=$(sha256sum "$out_dir/.config" | awk '{print $1}')
@@ -62,6 +91,8 @@ source_sha=$(git -C "$source_dir" rev-parse HEAD)
   printf 'image_sha256=%s\n' "$image_sha"
   printf 'image_lz4_sha256=%s\n' "$image_lz4_sha"
   printf 'build_jobs=%s\n' "$jobs"
+  printf 'module_count=%s\n' "$module_count"
+  printf 'modular_config_count=%s\n' "$module_config_count"
 } | tee "$artifacts/build-metadata.txt"
 
-(cd "$artifacts" && sha256sum Image Image.lz4 config System.map Module.symvers > SHA256SUMS)
+(cd "$artifacts" && sha256sum Image Image.lz4 config System.map Module.symvers modules-list.txt modules-SHA256SUMS > SHA256SUMS)

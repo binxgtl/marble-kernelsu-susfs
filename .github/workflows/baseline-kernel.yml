@@ -9,7 +9,7 @@ on:
       - 'manifests/**'
       - 'scripts/**'
   push:
-    branches: [main, 'bringup/**']
+    branches: [main]
     paths:
       - '.github/workflows/baseline-kernel.yml'
       - 'configs/**'
@@ -26,13 +26,19 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    concurrency:
+      group: marble-vps-full-build
+      queue: max
+    runs-on: [self-hosted, linux, x64, marble-builder]
     timeout-minutes: 120
     steps:
       - name: Check out project
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+
+      - name: Validate repository shell scripts
+        run: bash -n scripts/*.sh scripts/tests/*.sh
 
       - name: Record actual runner resources
         run: |
@@ -48,12 +54,58 @@ jobs:
             uname -a
           } | tee artifacts/runner-resources.txt
 
-      - name: Install build dependencies
+      - name: Prepare and verify build dependencies
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            bc bison build-essential ca-certificates cpio curl dwarves flex \
+          tool_root="${RUNNER_TOOL_CACHE:-$HOME/.cache}/marble-ci/root"
+          mkdir -p "$tool_root/usr/bin"
+          if ! command -v python >/dev/null 2>&1; then
+            ln -sfn "$(command -v python3)" "$tool_root/usr/bin/python"
+          fi
+          echo "$tool_root/usr/bin" >> "$GITHUB_PATH"
+          export PATH="$tool_root/usr/bin:$PATH"
+
+          if ! command -v cpio >/dev/null 2>&1; then
+            package_dir="$(mktemp -d)"
+            (
+              cd "$package_dir"
+              apt-get download cpio
+              package_file="$(find . -maxdepth 1 -type f -name 'cpio_*.deb' -print -quit)"
+              test -n "$package_file"
+              mkdir -p "$tool_root"
+              dpkg-deb -x "$package_file" "$tool_root"
+            )
+
+            cpio_bin="$(find "$tool_root" -type f -name cpio -perm -u+x -print -quit)"
+            if [[ -z "$cpio_bin" ]]; then
+              echo "Downloaded cpio package but no executable was extracted under $tool_root" >&2
+              find "$tool_root" -maxdepth 3 -type f -print >&2 || true
+              exit 1
+            fi
+            cpio_dir="$(dirname "$cpio_bin")"
+            echo "$cpio_dir" >> "$GITHUB_PATH"
+            export PATH="$cpio_dir:$PATH"
+          fi
+
+          packages=(
+            bc bison build-essential ca-certificates curl dwarves flex
             git kmod libelf-dev libssl-dev lz4 make python3 rsync xz-utils
+          )
+          missing=()
+          for package in "${packages[@]}"; do
+            if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null |
+              grep -qx 'install ok installed'; then
+              missing+=("$package")
+            fi
+          done
+          command -v cpio >/dev/null 2>&1 || missing+=(cpio)
+          command -v python >/dev/null 2>&1 || missing+=(python)
+          if (( ${#missing[@]} )); then
+            echo "Missing build dependencies: ${missing[*]}" >&2
+            exit 1
+          fi
+          cpio --version | head -n 1
+          python --version
 
       - name: Fetch pinned ACK source
         run: scripts/fetch-sources.sh work
@@ -63,7 +115,7 @@ jobs:
 
       - name: Build clean GKI baseline
         env:
-          BUILD_JOBS: '2'
+          BUILD_JOBS: '8'
         run: scripts/build-kernel.sh work artifacts
 
       - name: Run static KMI gate
@@ -90,6 +142,9 @@ jobs:
             artifacts/runner-resources.txt
             artifacts/kmi-report.txt
             artifacts/build.log
+            artifacts/modules-list.txt
+            artifacts/modules-SHA256SUMS
+            artifacts/modules/
           if-no-files-found: error
           retention-days: 14
           compression-level: 1

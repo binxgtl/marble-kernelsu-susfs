@@ -1,0 +1,177 @@
+name: M2 stock module KMI compatibility
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/m2-kmi.yml'
+      - 'configs/**'
+      - 'manifests/sources.lock'
+      - 'manifests/stock-module-versions.json'
+      - 'manifests/stock-module-providers.json'
+      - 'scripts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m2-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tooling-self-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install extractor dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends binutils gcc kmod python3
+
+      - name: Validate repository shell scripts
+        run: bash -n scripts/*.sh scripts/tests/*.sh
+
+      - name: Validate provider-aware extractor and verifier
+        run: scripts/tests/test-m2-tools.sh
+
+  build-m1-interface:
+    needs: tooling-self-test
+    concurrency:
+      group: marble-vps-full-build
+      queue: max
+    runs-on: [self-hosted, linux, x64, marble-builder]
+    timeout-minutes: 120
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Prepare and verify build dependencies
+        shell: bash
+        run: |
+          tool_root="${RUNNER_TOOL_CACHE:-$HOME/.cache}/marble-ci/root"
+          mkdir -p "$tool_root/usr/bin"
+          if ! command -v python >/dev/null 2>&1; then
+            ln -sfn "$(command -v python3)" "$tool_root/usr/bin/python"
+          fi
+          echo "$tool_root/usr/bin" >> "$GITHUB_PATH"
+          export PATH="$tool_root/usr/bin:$PATH"
+
+          if ! command -v cpio >/dev/null 2>&1; then
+            package_dir="$(mktemp -d)"
+            (
+              cd "$package_dir"
+              apt-get download cpio
+              package_file="$(find . -maxdepth 1 -type f -name 'cpio_*.deb' -print -quit)"
+              test -n "$package_file"
+              mkdir -p "$tool_root"
+              dpkg-deb -x "$package_file" "$tool_root"
+            )
+            cpio_bin="$(find "$tool_root" -type f -name cpio -perm -u+x -print -quit)"
+            test -n "$cpio_bin"
+            cpio_dir="$(dirname "$cpio_bin")"
+            echo "$cpio_dir" >> "$GITHUB_PATH"
+            export PATH="$cpio_dir:$PATH"
+          fi
+
+          packages=(
+            bc bison build-essential ca-certificates curl dwarves flex
+            git kmod libelf-dev libssl-dev lz4 make python3 rsync xz-utils
+          )
+          missing=()
+          for package in "${packages[@]}"; do
+            if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null |
+              grep -qx 'install ok installed'; then
+              missing+=("$package")
+            fi
+          done
+          command -v cpio >/dev/null 2>&1 || missing+=(cpio)
+          command -v python >/dev/null 2>&1 || missing+=(python)
+          if (( ${#missing[@]} )); then
+            echo "Missing build dependencies: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Build the unchanged M1 kernel interface
+        env:
+          BUILD_JOBS: '8'
+        run: |
+          scripts/fetch-sources.sh work
+          scripts/setup-toolchain.sh work
+          scripts/build-kernel.sh work artifacts
+
+      - name: Upload M1 interface for hosted verification
+        uses: actions/upload-artifact@v7
+        with:
+          name: marble-m2-m1-interface-${{ github.run_id }}
+          path: |
+            artifacts/Module.symvers
+            artifacts/config
+            artifacts/build-metadata.txt
+            artifacts/modules-list.txt
+            artifacts/modules-SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 1
+
+  static-kmi-check:
+    needs: build-m1-interface
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download M1 interface from the VPS build
+        uses: actions/download-artifact@v8
+        with:
+          name: marble-m2-m1-interface-${{ github.run_id }}
+          path: m1
+
+      - name: Require sanitized provider-aware inputs
+        run: |
+          test -s manifests/stock-module-versions.json
+          test -s manifests/stock-module-providers.json
+          test -s m1/Module.symvers
+          test -s m1/config
+          grep -qx 'CONFIG_MODVERSIONS=y' m1/config
+          python3 - <<'PY'
+          import json
+          manifest = json.load(open('manifests/stock-module-versions.json'))
+          providers = json.load(open('manifests/stock-module-providers.json'))
+          assert manifest['schema'] == 'marble-stock-module-versions-v1'
+          assert providers['schema'] == 'marble-stock-module-providers-v1'
+          assert manifest['status'] == 'NOT BOOT-PROVEN'
+          assert providers['status'] == 'NOT BOOT-PROVEN'
+          PY
+
+      - name: Compare every stock import with kernel and stock providers
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          python3 scripts/m2-verify-kmi.py \
+            manifests/stock-module-versions.json \
+            manifests/stock-module-providers.json \
+            m1/Module.symvers \
+            --report artifacts/m2-kmi-report.json \
+            | tee artifacts/m2-kmi-report.txt
+
+      - name: Upload sanitized M2 report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: marble-m2-kmi-report-${{ github.sha }}
+          path: |
+            artifacts/m2-kmi-report.json
+            artifacts/m2-kmi-report.txt
+          if-no-files-found: ignore
+          retention-days: 14

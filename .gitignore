@@ -1,0 +1,10 @@
+# Generated kernel outputs and proprietary inputs must never enter the repository.
+work/
+artifacts/
+__pycache__/
+*.pyc
+*.ko
+*.img
+*.bin
+*.tar
+*.tar.gz
