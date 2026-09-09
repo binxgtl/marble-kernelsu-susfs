@@ -48,6 +48,7 @@ cp "$root/build.log" "$artifacts/build.log"
 cp "$root/toolchain-version.txt" "$artifacts/toolchain-version.txt"
 
 kernel_release=$(make -s "${make_args[@]}" kernelrelease)
+lto_mode=$(grep -q '^CONFIG_LTO_CLANG_THIN=y$' "$out_dir/.config" && printf thin || printf full)
 config_sha=$(sha256sum "$out_dir/.config" | awk '{print $1}')
 image_sha=$(sha256sum "$artifacts/Image" | awk '{print $1}')
 image_lz4_sha=$(sha256sum "$artifacts/Image.lz4" | awk '{print $1}')
@@ -56,6 +57,7 @@ source_sha=$(git -C "$source_dir" rev-parse HEAD)
 {
   printf 'source_sha=%s\n' "$source_sha"
   printf 'kernel_release=%s\n' "$kernel_release"
+  printf 'lto_mode=%s\n' "$lto_mode"
   printf 'config_sha256=%s\n' "$config_sha"
   printf 'image_sha256=%s\n' "$image_sha"
   printf 'image_lz4_sha256=%s\n' "$image_lz4_sha"

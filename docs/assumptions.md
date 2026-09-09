@@ -11,7 +11,7 @@ Every item here is deliberately not treated as established fact.
 | A-005 | The supplied firmware inventory is sufficient for native remoteproc/WLAN/BT | Names and Android runtime states were observed; dependencies and load order are incomplete | Trace firmware requests and remoteproc sequencing | M6/M14/M15 |
 | A-006 | Xiaomi 67 W charging is available outside Android userspace | PD/PPS capabilities and Qualcomm/Xiaomi charger modules exist; authentication/policy dependencies are unknown | Instrument negotiated profiles and thermal/current limits with stock charger/cable | M17 |
 | A-007 | A volume-key selector can be implemented before Android init while retaining safe fallback | GPIO/PMIC key inputs exist after kernel bring-up; bootloader timing/path is unknown | Prototype only after both independent paths are stable | M19 |
-| A-008 | Current GitHub-hosted runner capacity is sufficient for the full pinned build | Account plan does not define per-job hardware | CI records `lscpu`, RAM, and disk; adjust job only from observed data | M0/M1 |
+| A-008 | ThinLTO is an acceptable M1 CI variation when the audit does not identify the stock LTO mode | The audit proves LTO/Clang LTO/CFI are enabled but not Full versus Thin; the observed 2-vCPU runner was terminated during Full-LTO linking after about 30 minutes | Preserve ThinLTO in artifact metadata; resolve the exact stock mode from a full stock config before device validation | M2/M3 |
 
 ## Explicit non-assumptions
 

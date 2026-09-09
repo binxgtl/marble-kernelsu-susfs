@@ -35,7 +35,11 @@ scripts/verify-kmi.sh artifacts/.config manifests/vendor-module-metadata.tsv art
 
 The build output is written under `artifacts/`. CI additionally records runner
 CPU, RAM, and disk facts instead of assuming a larger runner from the account
-plan.
+plan. The M1 CI fragment selects ThinLTO because the supplied audit confirms
+Clang LTO but does not distinguish Full from Thin, and the observed 2-vCPU
+runner was terminated while linking the Full-LTO GKI. The selected mode is
+recorded in `build-metadata.txt`; exact stock-mode matching remains an M2/M3
+input gate.
 
 ## Safety and privacy
 
