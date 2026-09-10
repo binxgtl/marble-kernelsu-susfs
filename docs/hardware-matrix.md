@@ -15,10 +15,10 @@ Status vocabulary:
 | Subsystem | Audit evidence | M0/M1 conclusion | Later acceptance gate |
 |---|---|---|---|
 | Device identity | Model reports Marble on Qualcomm SM7475; compatibles include `qcom,ukee-mtp`, `qcom,ukee`, `qcom,mtp` | Observed on Android; internal platform names may be ukee/cape/anorak rather than `marble` | Preserve DT identity when device integration starts |
-| Running kernel | `5.10.236-android12-9-00003-gfb24cf99ad97-ab14313284`; arm64; PREEMPT | ACK 5.10.236 is the version-aligned clean baseline candidate | Boot HyperOS with no regressions at M3 |
+| Running kernel | `5.10.236-android12-9-00003-gfb24cf99ad97-ab14313284`; arm64; PREEMPT | ACK 5.10.236 is the version-aligned clean baseline candidate | **Met at M3 (2026-09-10)**: ephemeral boot reached `sys.boot_completed=1` at 31 s |
 | Compiler/security config | Android clang 12.0.5 (`r416183b`); LLD 12.0.5; LTO, Clang CFI, shadow-call-stack enabled | Build with pinned clang-r416183b and keep LTO/CFI/SCS enabled | Compare generated config and runtime behavior |
-| GKI/KMI | 356 vendor-ramdisk modules share vermagic `5.10.160-gki-gd28eeb36ae86 SMP preempt mod_unload modversions aarch64`; running kernel is 5.10.236 | Strong static evidence of GKI/KMI plus symbol-versioning dependency; version-string equality is not required | Full symbol CRC check, then load all stock modules without unknown-symbol or CRC errors at M2/M3 |
-| Boot image | Android boot header v4; arm64 Image with 4 KiB pages; generic ramdisk LZ4; 4 KiB boot signature | Packaging must preserve v4 semantics; packaging is not part of M1 | Local-only repack and boot test at M3 |
+| GKI/KMI | 356 vendor-ramdisk modules share vermagic `5.10.160-gki-gd28eeb36ae86 SMP preempt mod_unload modversions aarch64`; running kernel is 5.10.236 | Strong static evidence of GKI/KMI plus symbol-versioning dependency; version-string equality is not required | **Met**: M2 CRC gate green, then 418 of 419 stock modules loaded on hardware with zero unknown-symbol, version-magic, or CRC errors; the only absent module was the out-of-tree `kernelsu` LKM |
+| Boot image | Android boot header v4; arm64 Image with 4 KiB pages; generic ramdisk LZ4; 4 KiB boot signature | Packaging must preserve v4 semantics; packaging is not part of M1 | **Met**: local-only repack plus a non-writing `fastboot boot` passed at M3 |
 | Vendor boot | Vendor boot header v4; 4 KiB page; LZ4 platform fragment; DTB and 85-byte bootconfig present | Stock vendor_boot remains local and unchanged for baseline | Reuse stock vendor_boot at M3 |
 | Bootconfig | `androidboot.hardware=qcom`, `androidboot.memcg=1`, USB controller `a600000.dwc3` | Treat as required packaging inputs | Byte-for-byte semantic verification during local repack |
 | Generic ramdisk | `/init` is a KernelSU wrapper; `/init.real` is Android init; `kernelsu.ko` is present | Do not use this wrapper as the dual-boot design | Clean only after source-integrated KernelSU milestone |
@@ -34,7 +34,7 @@ Status vocabulary:
 | Wi-Fi | QCA6490, `qca6490`, `cnss2`, PCI/MHI stack; wlan0 active | Observed on Android; firmware list alone does not identify the minimal native set | Scan, WPA2/WPA3, reconnect at M14 |
 | Bluetooth | Qualcomm SoC property `hastings`; `btpower`, `bt_fm_slim`, Slimbus; rfkill entry present but soft-blocked; no `hci` node was captured | Controller transport is not yet proven for native Linux | hci0/rfkill/pair/reconnect/HID/A2DP at M15; HFP mic/SCO at M16 |
 | Storage/rootfs | Android `/data` is F2FS with file and metadata encryption tied to Android key handling | `/data/ubuntu` cannot be the initial native rootfs | Initramfs shell, then external USB rootfs; no internal repartitioning |
-| AVB/slots | A/B partitions observed; active slot was `_a`; device audit reported unlocked/orange verified-boot state | Informational only; CI must never alter slots or AVB | Any device-side boot action requires a later explicit gate |
+| AVB/slots | A/B partitions observed; bootloader reports `unlocked: yes`, `current-slot: a`, `slot-count: 2`, `max-download-size: 805306368`, `partition-size:boot_a: 0xC000000`. Android properties are not a reliable lock indicator here: some boots report `flash.locked=1`/`verifiedbootstate=green` while the bootloader reports unlocked, so `fastboot getvar unlocked` is the authority | Informational only; CI must never alter slots or AVB | M3 used an ephemeral non-writing boot only; slots, AVB, and every partition were left untouched |
 
 ## Audit coverage notes
 

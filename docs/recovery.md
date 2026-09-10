@@ -66,6 +66,22 @@ following happens:
 A refusal is a valid, informative result. It is never a reason to escalate to a
 writing command.
 
+## Executed record
+
+The gate ran on 2026-09-10. `fastboot boot` was issued once against the verified
+test image; no other fastboot subcommand was used. The device booted, was
+observed, and was returned to the installed system with a normal reboot, which
+came back on the stock kernel with all 419 modules. Nothing was written.
+
+An earlier attempt the same day did not reach `sys.boot_completed`, but the
+cause was traced to a pre-existing userspace fault unrelated to the kernel:
+`DeviceLockController` had been uninstalled for user 0, so `system_server`
+crash-looped on `DEVICE_LOCK_CONTROLLER_SERVICE not found`. The stock kernel
+failed identically until the package was restored with
+`pm install-existing --user 0`, which confirms the fault was not caused by the
+test image. This is a reminder that the gate needs a device that boots stock
+cleanly first; otherwise the result is uninterpretable.
+
 ## Rollback
 
 An ephemeral `fastboot boot` leaves storage untouched, so rollback is simply a

@@ -88,10 +88,12 @@ The generated image deliberately contains no boot signature, no vbmeta struct,
 and no AVB footer. Everything after the page-aligned ramdisk is dropped, which
 is why the output is labelled unsigned and test-only.
 
-**Whether the device's bootloader accepts a download of this size over fastboot
-is unproven.** No download-buffer capacity has been measured on this hardware,
-and a refusal is an expected and acceptable outcome. See
-[`recovery.md`](recovery.md) for the abort rules.
+Bootloader acceptance of a download this size is now **measured, not assumed**:
+`fastboot getvar max-download-size` reports 805306368 (768 MiB) against a
+39792640-byte image, and the transfer completed. The bootloader also reports
+`partition-size:boot_a` as `0xC000000` = 201326592, independently confirming the
+partition bound above. See [`recovery.md`](recovery.md) for the abort rules that
+applied.
 
 ## CI boundary
 
@@ -103,14 +105,52 @@ real boot image or vendor module is present in the workflow or its artifacts.
 
 ## Hardware gate
 
-Status remains **HARDWARE TEST PENDING**. After checking the JSON report and its
-SHA-256 value, the only permitted first test is a non-writing temporary boot:
+Status is **HARDWARE PASS** as of 2026-09-10. The gate was exercised exactly as
+specified — a single non-writing temporary boot, no partition written:
 
 ```bash
 fastboot boot artifacts/m3-local/marble-m3-test-boot.img
 ```
 
-If temporary boot is unsupported or rejected, stop; do not substitute any
-`fastboot flash` command. If Android boots, return `uname -a`, `/proc/version`,
-`/proc/modules`, the boot-completed property, and a complete privileged dmesg.
-Powering off or rebooting returns to the unchanged installed stock slot.
+If a future run finds temporary boot unsupported or rejected, stop; do not
+substitute any `fastboot flash` command. Powering off or rebooting returns to
+the unchanged installed stock slot.
+
+### Recorded result
+
+| Item | Value |
+|---|---|
+| Test image | SHA-256 `6c295d01a91d28ba5cba201a24a87ee06e1c28dccf0df7867b467aa79b40a941`, 39792640 bytes |
+| Kernel payload | M1 run #33 `Image`, SHA-256 `15b59c1353825516c415fbedfb98593f01cdf997f848e542b0a6bb98b7e52353` |
+| Download | accepted; `Sending OKAY` then `Booting OKAY` |
+| `uname -r` | `5.10.236-gb97c62c4e7d1` |
+| `/proc/version` | built by `marble-ci@github-actions`, Android clang 12.0.5 (r416183b) |
+| `sys.boot_completed` | **1, at 31 s uptime** |
+| `/proc/modules` | 418 loaded, against a 419-module stock baseline |
+| Module load errors | none: zero `unknown symbol`, zero `disagrees about version`, zero `version magic` across 6946 logcat lines |
+| System process crashes | zero `FATAL EXCEPTION IN SYSTEM PROCESS` |
+| Userspace | `com.android.systemui` and the launcher running, `surfaceflinger` running, display awake, `/dev/dri/card0` and `renderD128` present |
+| Rollback | a normal reboot returned to the stock kernel with all 419 modules |
+
+The single module absent relative to stock is `kernelsu`. That is expected and
+is not a defect: it is an out-of-tree LKM that the installed boot partition's
+KernelSU-patched ramdisk force-loads, and this test deliberately uses the clean
+ROM generic ramdisk, which has no such wrapper. All 418 genuine stock vendor
+modules loaded, including `qca6490`, `msm_drm`, `msm_kgsl`, `goodix_core`,
+`goodix_3626`, `adsp_loader_dlkm`, `cdsp_loader`, `q6_dlkm`, and `aw882xx_dlkm`.
+
+This is the hardware confirmation of the M2 static prediction: every stock
+vendor-module symbol requirement resolved against the clean ACK
+`Module.symvers` at runtime, not merely on paper.
+
+### Known runtime variables carried into this result
+
+- **LTO mode.** Stock is `CONFIG_LTO_CLANG_FULL=y`; this build is ThinLTO. The
+  divergence is real and was carried into the passing boot unchanged, so
+  ThinLTO is now empirically shown not to block boot or vendor-module loading
+  on this device. It remains a deliberate deviation from stock, not a match.
+- **Privileged dmesg was not captured.** `dmesg` returned
+  `klogctl: Permission denied`. The clean ramdisk provides no root, so the
+  evidence list in earlier revisions of this document could not be satisfied in
+  full by this configuration. Kernel-log capture requires a boot configuration
+  that provides root.

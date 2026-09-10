@@ -5,14 +5,17 @@ Reproducible kernel and platform bring-up for the Redmi Note 12 Turbo
 
 ## Current gate
 
-M0/M1 is accepted and M2 static KMI verification is green. M3 is now in scope:
+M0/M1 is accepted, M2 static KMI verification is green, and **M3 passed on
+hardware on 2026-09-10**:
 
 - M0: private repository, pinned sources, reproducible CI, sanitized audit docs.
 - M1: clean Android Common Kernel (ACK) 5.10.236 GKI arm64 build.
 - M2: sanitized stock-module symbol/CRC comparison against the unchanged M1
   `Module.symvers`.
 - M3: local-only boot v4 kernel replacement with synthetic CI validation and a
-  non-writing physical boot gate.
+  non-writing physical boot gate. The repacked image booted HyperOS to
+  `sys.boot_completed=1` in 31 s with 418 of 419 stock modules loaded and no
+  symbol or CRC errors. No partition was written.
 
 The current work deliberately does **not** include Xiaomi hardware forward-ports,
 KernelSU, native-Linux hardware work, a dual-boot selector, performance tuning,

@@ -49,7 +49,14 @@ workflow. No boot-image packaging or device test occurs in M2.
 - Do not write a partition; the first device gate is temporary boot only.
 
 Exit: synthetic CI is green and the locally generated image passes a physical,
-non-writing boot test. Until then, status is **HARDWARE TEST PENDING**.
+non-writing boot test.
+
+**Met on 2026-09-10.** The repacked image temporarily booted HyperOS to
+`sys.boot_completed=1` at 31 s with 418 of 419 stock modules loaded, no
+unknown-symbol or CRC errors, and no system-process crash; the only absent
+module was the stock ramdisk's out-of-tree `kernelsu` LKM. No partition was
+written, and a normal reboot restored the stock kernel. Full evidence is in
+[`m3-boot-integration.md`](m3-boot-integration.md).
 
 ## Prohibited before later gates
 
