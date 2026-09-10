@@ -108,3 +108,28 @@ expect_failure bad-version.img new-Image bad-version
 expect_failure bad-signature.img new-Image bad-signature
 expect_failure stock.img bad-Image bad-kernel
 expect_failure stock.img huge-Image oversized
+
+stock_hash=$(sha256sum "$tmp/stock.img" | cut -d' ' -f1)
+expect_path_collision() {
+  local output=$1 report=$2 label=$3
+  if python3 "$root/scripts/m3-repack-boot.py" \
+    --stock-boot "$tmp/stock.img" --kernel "$tmp/new-Image" \
+    --output "$output" --report "$report"; then
+    echo "expected $label path collision to fail" >&2
+    exit 1
+  fi
+  test "$(sha256sum "$tmp/stock.img" | cut -d' ' -f1)" = "$stock_hash"
+}
+
+expect_path_collision "$tmp/collision-output.img" "$tmp/stock.img" report-input
+ln -s "$tmp/stock.img" "$tmp/stock-symlink.img"
+expect_path_collision "$tmp/collision-output.img" "$tmp/stock-symlink.img" report-symlink
+ln "$tmp/stock.img" "$tmp/stock-hardlink.img"
+expect_path_collision "$tmp/collision-output.img" "$tmp/stock-hardlink.img" report-hardlink
+expect_path_collision "$tmp/shared-output-report" "$tmp/shared-output-report" output-report
+
+mkdir "$tmp/real-output-dir"
+ln -s "$tmp/real-output-dir" "$tmp/output-dir-symlink"
+expect_path_collision \
+  "$tmp/real-output-dir/shared" "$tmp/output-dir-symlink/shared" \
+  output-report-parent-symlink

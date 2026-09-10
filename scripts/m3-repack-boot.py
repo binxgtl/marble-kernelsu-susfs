@@ -118,6 +118,28 @@ def write_padded(handle, data: bytes) -> None:
     handle.write(b"\0" * (align(len(data)) - len(data)))
 
 
+def require_distinct_paths(paths: dict[str, Path]) -> None:
+    """Reject lexical, symlink, and existing hard-link path collisions."""
+    items = list(paths.items())
+    resolved: dict[Path, str] = {}
+    for label, path in items:
+        canonical = path.resolve(strict=False)
+        if canonical in resolved:
+            raise BootImageError(
+                f"{label} and {resolved[canonical]} must be different files"
+            )
+        resolved[canonical] = label
+
+    for index, (left_label, left) in enumerate(items):
+        if not left.exists():
+            continue
+        for right_label, right in items[index + 1 :]:
+            if right.exists() and os.path.samefile(left, right):
+                raise BootImageError(
+                    f"{right_label} and {left_label} must be different files"
+                )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--stock-boot", required=True, type=Path)
@@ -126,9 +148,14 @@ def main() -> int:
     parser.add_argument("--report", required=True, type=Path)
     args = parser.parse_args()
     try:
-        resolved = [path.resolve() for path in (args.stock_boot, args.kernel, args.output)]
-        if len(set(resolved)) != len(resolved):
-            raise BootImageError("stock input, kernel, and output must be different files")
+        require_distinct_paths(
+            {
+                "stock input": args.stock_boot,
+                "kernel": args.kernel,
+                "output": args.output,
+                "report": args.report,
+            }
+        )
         stock = parse_boot(args.stock_boot)
         replacement = args.kernel.read_bytes()
         validate_arm64_image(replacement)

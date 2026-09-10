@@ -41,8 +41,9 @@ kernel command line or other device-specific values.
 
 CI uses only synthetic boot, kernel, ramdisk, and signature bytes. Regression
 tests cover a successful byte-preserving repack plus invalid magic, wrong header
-version, and oversized output. No real boot image or vendor module is present in
-the workflow or its artifacts.
+version, invalid signature size, invalid kernel format, oversized output, and
+direct/symlink/hard-link path collisions. No real boot image or vendor module is
+present in the workflow or its artifacts.
 
 ## Hardware gate
 
