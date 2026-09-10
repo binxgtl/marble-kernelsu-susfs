@@ -54,7 +54,9 @@ Uploaded audit bundles, boot images, vendor boot images, DTBO/VBMeta images,
 firmware, and vendor modules are never committed or uploaded as CI artifacts.
 Only sanitized technical facts and hashes are retained here.
 
-See [`docs/bringup.md`](docs/bringup.md) for milestone gates and
+[`docs/roadmap.md`](docs/roadmap.md) is the long-term source of truth for what
+comes next and why; start there. See [`docs/bringup.md`](docs/bringup.md) for
+milestone gates and
 [`docs/assumptions.md`](docs/assumptions.md) for facts that are not yet proven.
 M2 extraction and report semantics are documented in
 [`docs/m2-kmi.md`](docs/m2-kmi.md).

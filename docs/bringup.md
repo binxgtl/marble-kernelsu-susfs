@@ -1,5 +1,10 @@
 # Bring-up gates
 
+This file carries the detailed gate and the collected evidence for milestones
+that have started. [`roadmap.md`](roadmap.md) is the source of truth for the
+full milestone list, their IDs, and what comes next; a milestone gets a section
+here when its implementation begins.
+
 ## M0 — repository and reproducible CI
 
 - Private repository; `main` remains known-good.
