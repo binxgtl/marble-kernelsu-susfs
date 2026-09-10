@@ -7,6 +7,7 @@ on:
       - '.github/workflows/m3-boot-integration.yml'
       - 'docs/m3-boot-integration.md'
       - 'scripts/m3-build-test-image.sh'
+      - 'scripts/m3-python.sh'
       - 'scripts/m3-repack-boot.py'
       - 'scripts/tests/test-m3-boot-repack.sh'
   workflow_dispatch:

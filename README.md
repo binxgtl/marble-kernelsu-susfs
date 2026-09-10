@@ -34,7 +34,7 @@ touch a phone.
 scripts/fetch-sources.sh work
 scripts/setup-toolchain.sh work
 scripts/build-kernel.sh work artifacts
-scripts/verify-kmi.sh artifacts/.config manifests/vendor-module-metadata.tsv artifacts/Module.symvers
+scripts/verify-kmi.sh artifacts/config manifests/vendor-module-metadata.tsv artifacts/Module.symvers
 ```
 
 The build output is written under `artifacts/`. CI additionally records runner

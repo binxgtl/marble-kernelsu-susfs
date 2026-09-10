@@ -11,7 +11,24 @@ Every item here is deliberately not treated as established fact.
 | A-005 | The supplied firmware inventory is sufficient for native remoteproc/WLAN/BT | Names and Android runtime states were observed; dependencies and load order are incomplete | Trace firmware requests and remoteproc sequencing | M6/M14/M15 |
 | A-006 | Xiaomi 67 W charging is available outside Android userspace | PD/PPS capabilities and Qualcomm/Xiaomi charger modules exist; authentication/policy dependencies are unknown | Instrument negotiated profiles and thermal/current limits with stock charger/cable | M17 |
 | A-007 | A volume-key selector can be implemented before Android init while retaining safe fallback | GPIO/PMIC key inputs exist after kernel bring-up; bootloader timing/path is unknown | Prototype only after both independent paths are stable | M19 |
-| A-008 | ThinLTO is an acceptable M1 CI variation when the audit does not identify the stock LTO mode | The audit proves LTO/Clang LTO/CFI are enabled but not Full versus Thin; the observed 2-vCPU runner was terminated during Full-LTO linking after about 30 minutes | Preserve ThinLTO in artifact metadata; resolve the exact stock mode from a full stock config before device validation | M2/M3 |
+| A-008 | ThinLTO is an acceptable M1 CI variation when the audit does not identify the stock LTO mode | **Fact question resolved:** the stock config was recovered offline and sets `CONFIG_LTO_CLANG_FULL=y` with `CONFIG_LTO_CLANG_THIN` unset, while M1 run #33 records `lto_mode=thin`. The divergence is therefore real and known, not unknown | Decide explicitly whether to accept ThinLTO for the first ephemeral boot or rebuild M1 with Full LTO; no longer blocked on obtaining a stock config | M2/M3 |
+
+## Recovering the stock kernel config without a device
+
+A-008 previously expected `/proc/config.gz` from a running device. That is not
+required. The stock GKI kernel is built with `CONFIG_IKCONFIG=y`, so its own
+`.config` is embedded in the raw `Image` inside the stock boot image and can be
+read locally, read-only, from the ROM package alone:
+
+1. Parse the boot header for `kernel_size` and read the kernel at offset 4096.
+2. Locate the `IKCFG_ST` and `IKCFG_ED` markers in those bytes.
+3. Gunzip everything between them.
+
+For `OS3.0.5.0.VMRCNXM` this yields a 181361-character config that also confirms
+`CONFIG_IKCONFIG_PROC=y`, `CONFIG_CFI_CLANG=y`, `CONFIG_SHADOW_CALL_STACK=y`,
+`CONFIG_MODVERSIONS=y`, `CONFIG_PREEMPT=y`, and `CONFIG_HZ=250`. Reading
+`/proc/config.gz` on the device would only re-confirm the same file and is
+therefore an optional cross-check, not a gate input.
 
 ## Explicit non-assumptions
 

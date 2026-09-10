@@ -5,7 +5,10 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-python3 - "$tmp" <<'PY'
+. "$root/scripts/m3-python.sh"
+m3_resolve_python
+
+"$PYTHON" - "$tmp" <<'PY'
 import pathlib
 import struct
 import sys
@@ -52,13 +55,13 @@ struct.pack_into("<I", bad_signature, 1580, 512)
 (root / "huge-Image").write_bytes(arm64_image(40000, 0x33))
 PY
 
-python3 "$root/scripts/m3-repack-boot.py" \
+"$PYTHON" "$root/scripts/m3-repack-boot.py" \
   --stock-boot "$tmp/stock.img" \
   --kernel "$tmp/new-Image" \
   --output "$tmp/test-boot.img" \
   --report "$tmp/report.json"
 
-python3 - "$tmp" <<'PY'
+"$PYTHON" - "$tmp" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -95,7 +98,7 @@ PY
 
 expect_failure() {
   local stock=$1 kernel=$2 label=$3
-  if python3 "$root/scripts/m3-repack-boot.py" \
+  if "$PYTHON" "$root/scripts/m3-repack-boot.py" \
     --stock-boot "$tmp/$stock" --kernel "$tmp/$kernel" \
     --output "$tmp/out-$label.img" --report "$tmp/$label.json"; then
     echo "expected $label fixture to fail" >&2
@@ -112,7 +115,7 @@ expect_failure stock.img huge-Image oversized
 stock_hash=$(sha256sum "$tmp/stock.img" | cut -d' ' -f1)
 expect_path_collision() {
   local output=$1 report=$2 label=$3
-  if python3 "$root/scripts/m3-repack-boot.py" \
+  if "$PYTHON" "$root/scripts/m3-repack-boot.py" \
     --stock-boot "$tmp/stock.img" --kernel "$tmp/new-Image" \
     --output "$output" --report "$report"; then
     echo "expected $label path collision to fail" >&2
@@ -133,3 +136,39 @@ ln -s "$tmp/real-output-dir" "$tmp/output-dir-symlink"
 expect_path_collision \
   "$tmp/real-output-dir/shared" "$tmp/output-dir-symlink/shared" \
   output-report-parent-symlink
+
+# The documented entry point must work end to end, not just the Python tool it
+# wraps. It resolves its own paths relative to the repository root.
+(
+  cd "$root"
+  ./scripts/m3-build-test-image.sh "$tmp/stock.img" "$tmp/new-Image" "$tmp/wrapper"
+)
+test -s "$tmp/wrapper/marble-m3-test-boot.img"
+test -s "$tmp/wrapper/marble-m3-test-boot.json"
+cmp "$tmp/wrapper/marble-m3-test-boot.img" "$tmp/test-boot.img"
+
+# Interpreter resolution must auto-detect Python 3, honour an explicit PYTHON
+# override, and fail closed rather than silently falling back to Python 2 or to
+# no interpreter at all.
+resolve_with() {
+  env "$@" "$BASH" -c '
+    set -euo pipefail
+    . "$1/scripts/m3-python.sh"
+    m3_resolve_python
+    printf "%s\n" "$PYTHON"
+  ' resolver "$root"
+}
+
+autodetected=$(resolve_with PYTHON=)
+test -n "$autodetected"
+"$autodetected" -c 'import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)'
+test "$(resolve_with PYTHON="$PYTHON")" = "$PYTHON"
+
+if resolve_with PYTHON="$root/scripts/m3-python.sh" >/dev/null 2>&1; then
+  echo 'expected a non-Python PYTHON override to fail closed' >&2
+  exit 1
+fi
+if resolve_with PYTHON= PATH=/nonexistent >/dev/null 2>&1; then
+  echo 'expected resolution with no interpreter on PATH to fail closed' >&2
+  exit 1
+fi
