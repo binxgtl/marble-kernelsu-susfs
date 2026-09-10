@@ -39,8 +39,20 @@ from the locked revisions.
 Exit: all stock requirements exist with exact CRC matches in the separate M2
 workflow. No boot-image packaging or device test occurs in M2.
 
+## M3 — Android boot integration
+
+- Accept only an audited Android boot header v4 input kept outside Git.
+- Replace only the raw kernel; preserve the compressed generic ramdisk exactly.
+- Remove the stale legacy GKI signature and label the result unsigned/test-only.
+- Reparse the output, enforce its size boundary, and record sanitized hashes.
+- Exercise success and fail-closed cases using synthetic inputs in hosted CI.
+- Do not write a partition; the first device gate is temporary boot only.
+
+Exit: synthetic CI is green and the locally generated image passes a physical,
+non-writing boot test. Until then, status is **HARDWARE TEST PENDING**.
+
 ## Prohibited before later gates
 
-No boot-image packaging, device test, flashing, repartitioning, AVB-state changes, KernelSU integration,
+No flashing, repartitioning, AVB-state changes, KernelSU integration,
 hardware-forward-port patches, dual-boot selector, overclocking, or thermal
-policy bypass is part of M0/M1/M2.
+policy bypass is part of M0/M1/M2/M3.
