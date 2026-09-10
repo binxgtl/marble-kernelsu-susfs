@@ -18,8 +18,8 @@ end rather than shifting the others.
 | M1 | Clean ACK 5.10.236 GKI baseline | **DONE** |
 | M2 | Stock vendor-module KMI compatibility | **DONE** |
 | M3 | HyperOS hardware boot with the custom ACK kernel | **DONE** |
-| M4 | KernelSU Next source integration | **CURRENT** |
-| M5 | Native initramfs boot | Not started |
+| M4 | KernelSU Next source integration | **DONE** |
+| M5 | Native initramfs boot | **NEXT** |
 | M6 | UFS, firmware and remoteproc bring-up | Not started |
 | M7 | DRM display and touch | Not started |
 | M8 | USB host and battery/power basics | Not started |
@@ -178,7 +178,12 @@ passes; the resulting image boots the device and root works.
 **Explicitly out of scope.** SUSFS. Any LTO, CFI or shadow-call-stack change.
 Any change to the M1 baseline output. Any partition write.
 
-**Status: CURRENT.** Details in [`m4-kernelsu.md`](m4-kernelsu.md).
+**Status: DONE (2026-09-10).** Pinned KernelSU Next v3.3.0 commit
+`3b18216f71df189ab3d1b1ce0bdb21be1268e771` compiled into the baseline; the
+exported KMI surface is byte-identical to M1; the test image
+`3fcc3ac97f033218d31ad1df457a3afa4a0c8749a628f7d5054d74c508d9e988` booted to
+`sys.boot_completed=1` at 28 s with root working and zero CFI violations.
+Details in [`m4-kernelsu.md`](m4-kernelsu.md).
 
 ## M5 — Native initramfs boot
 

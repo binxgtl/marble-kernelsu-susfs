@@ -63,6 +63,30 @@ module was the stock ramdisk's out-of-tree `kernelsu` LKM. No partition was
 written, and a normal reboot restored the stock kernel. Full evidence is in
 [`m3-boot-integration.md`](m3-boot-integration.md).
 
+## M4 — KernelSU Next source integration
+
+- Pin KernelSU Next by tag and commit; never a floating branch.
+- Integrate it into the ACK tree without patching any existing kernel source
+  file, and keep the configuration delta to what it genuinely requires.
+- Keep the exported KMI surface frozen and rerun the provider-aware stock-module
+  gate against the resulting `Module.symvers`.
+- Package through the existing M3 pipeline; no new packaging path.
+- Do not write a partition; the device gate is again temporary boot only.
+
+Exit: CI green with a deterministic in-tree KernelSU version, the frozen KMI
+digest unchanged, and the image boots the device with root working.
+
+**Met on 2026-09-10.** KernelSU Next v3.3.0, commit
+`3b18216f71df189ab3d1b1ce0bdb21be1268e771`, in-tree version 33214. The build's
+`Module.symvers` is byte-identical to the M1 baseline, so the exported KMI
+surface did not move at all, and the provider-aware gate matched 18368 of 18368
+symbol requirements. Test image
+`3fcc3ac97f033218d31ad1df457a3afa4a0c8749a628f7d5054d74c508d9e988` reached
+`sys.boot_completed=1` at 28 s with the same 418-module set as the M3 pass,
+`su -c id` returning `uid=0(root)`, `ksud debug version` reporting kernel
+version 33214, and zero CFI violations or panics in dmesg. A normal reboot
+restored the stock kernel. Evidence in [`m4-kernelsu.md`](m4-kernelsu.md).
+
 ## Prohibited before later gates
 
 No flashing, repartitioning, AVB-state changes, KernelSU integration,

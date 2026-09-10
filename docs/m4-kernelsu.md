@@ -116,19 +116,64 @@ M3 pipeline is used unchanged:
 
 ## Gate
 
-Status is **BUILD PENDING** until the M4 workflow is green. No device operation
-is part of M4, and the same prohibitions as
-[`recovery.md`](recovery.md) apply: the first and only permitted hardware step
-remains a non-writing `fastboot boot`, and it happens after the artifact and its
-hashes have been reported and reviewed.
+Status is **HARDWARE PASS** as of 2026-09-10. As at M3, the gate was a single
+ephemeral `fastboot boot`; no partition was written and the prohibitions in
+[`recovery.md`](recovery.md) applied throughout.
 
-## Open risks
+### Build result
 
-- **5.10 compilation is unproven here.** The KernelSU sources carry
-  `LINUX_VERSION_CODE` branches below 5.11, so 5.10 is a handled case upstream,
-  but this project has not compiled it yet. The build is the test.
-- **CFI plus ThinLTO against syscall-table patching.** KernelSU includes
-  `hook/arm64/patch_memory.o`, and the baseline enables `CONFIG_CFI_CLANG` with
-  ThinLTO. This is the most likely place for the build or the boot to break, and
-  neither reading the source nor further research can settle it. Only a build
-  and then the hardware gate can.
+| Item | Value |
+|---|---|
+| `Image` | `17ca7970f2cccccc537fc6ea2bfb1cbd5a5e05d2512e7f8315343b66f89febc1`, 38604684 bytes |
+| Baseline `Image` it must differ from | `15b59c1353825516c415fbedfb98593f01cdf997f848e542b0a6bb98b7e52353` |
+| `kernel_release` | `5.10.236-gb97c62c4e7d1-dirty` |
+| `lto_mode` | `thin`, unchanged |
+| In-tree KernelSU version | `33214`, tag `v3.3.0`, with no fallback warning |
+| `Module.symvers` | `a53147dba0f7475607f08978e8cc2099a39a43c3d0c99a2063b052f561b35ff5` — **byte-identical to the M1 baseline** |
+| Config delta vs M1 | exactly 9 lines, all of them KernelSU |
+| Provider-aware gate | 18368 of 18368 symbol requirements matched, 0 missing, 0 mismatches |
+
+### Hardware result
+
+| Item | Value |
+|---|---|
+| Test image | `3fcc3ac97f033218d31ad1df457a3afa4a0c8749a628f7d5054d74c508d9e988`, 39989248 bytes |
+| `uname -r` | `5.10.236-gb97c62c4e7d1-dirty` |
+| `sys.boot_completed` | **1, at 28 s uptime** |
+| `/proc/modules` | 418, the identical set to the M3 pass |
+| Module load errors | none in dmesg: zero unknown-symbol, version-magic or CRC messages |
+| Root | `su -c id` returns `uid=0(root) ... context=u:r:ksu:s0` |
+| Kernel version seen by userspace | `ksud debug version` reports `Kernel Version: 33214` |
+| CFI violations | **zero** |
+| Panics / oopses | **zero** |
+| Rollback | a normal reboot returned to the stock kernel with all 419 modules |
+
+`kernelsu` no longer appears in `/proc/modules`, which is the point of this
+milestone: it is compiled into the kernel rather than force-loaded as an
+out-of-tree module by a patched ramdisk. The stock boot partition force-loads it
+with `no symbol version for module_layout` and taints the kernel; the M4 kernel
+does neither.
+
+The two dmesg warnings observed — `enable_irq` at `kernel/irq/manage.c:691`
+from `spi_geni_runtime_resume`, and the unprivileged-eBPF Spectre notice — are
+present identically on the stock kernel, so neither is an M4 regression. That
+was checked against a stock dmesg captured beforehand rather than assumed.
+
+### On the `-dirty` suffix
+
+Integrating KernelSU modifies `drivers/Makefile` and `drivers/Kconfig` and adds
+an untracked symlink, so `setlocalversion` marks the release string dirty. This
+is accurate rather than a defect: the tree genuinely is modified. It does not
+affect module loading, because with `MODVERSIONS` the kernel's `same_magic()`
+compares only the flag suffix after the first space, and that suffix is
+unchanged. M3 already demonstrated this in practice, where stock modules built
+against `5.10.160-gki-...` loaded onto a `5.10.236-gb97c62c4e7d1` kernel.
+
+## Risks that were open before the build, and how they resolved
+
+- **5.10 compilation.** Resolved: the build is green. All seven hook objects
+  compile, including `hook/arm64/patch_memory.o` and `hook/arm64/syscall_hook.o`.
+- **CFI plus ThinLTO against syscall-table patching.** Resolved: no build error,
+  and zero CFI violations at runtime across a full boot to
+  `sys.boot_completed`. KernelSU patched syscall slot 42 and installed its
+  dispatcher cleanly.
