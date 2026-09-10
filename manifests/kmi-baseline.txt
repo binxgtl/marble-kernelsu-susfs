@@ -1,0 +1,22 @@
+# Frozen KMI surface of the M1 baseline that booted the device at M3.
+#
+# Later milestones that add code to the kernel must not disturb this surface.
+# KernelSU Next at the pinned M4 commit contains no EXPORT_SYMBOL at all, so an
+# M4 build is expected to reproduce this digest exactly.
+#
+# The digest is deliberately order-independent, because link order may move
+# lines in Module.symvers without any KMI meaning. It is computed over the
+# sorted set of "symbol<TAB>crc<TAB>export_type" records:
+#
+#   scripts/m4-kmi-digest.py artifacts/Module.symvers
+#
+# Provenance: M1 run #33, workflow run 34437610048, repository commit
+# 92657f26614eeeffaa603ca25c2f42704fe09027. Reproduced byte-for-byte by M1
+# run #34 (workflow run 34467081009), which produced an identical Image.
+#
+# A mismatch is a hard failure, not a warning. Investigate by diffing against
+# the Module.symvers in the M1 artifact before considering any update here.
+baseline|symbols|14614
+baseline|canonical_sha256|72c9fb8e915500074f0b5382371441c14c9054852cf79d808f365723d9d57295
+baseline|raw_sha256|a53147dba0f7475607f08978e8cc2099a39a43c3d0c99a2063b052f561b35ff5
+baseline|image_sha256|15b59c1353825516c415fbedfb98593f01cdf997f848e542b0a6bb98b7e52353

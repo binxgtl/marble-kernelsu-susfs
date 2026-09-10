@@ -31,8 +31,11 @@ make_args=(
 )
 
 make "${make_args[@]}" gki_defconfig
+# EXTRA_FRAGMENTS is intentionally unquoted so a caller can pass several paths.
+# It is empty for M1, which keeps this command byte-identical to the build that
+# produced the M3-proven Image.
 "$source_dir/scripts/kconfig/merge_config.sh" -m -O "$out_dir" \
-  "$out_dir/.config" configs/baseline.fragment
+  "$out_dir/.config" configs/baseline.fragment ${EXTRA_FRAGMENTS:-}
 make "${make_args[@]}" olddefconfig
 
 scripts/verify-config.sh "$out_dir/.config"

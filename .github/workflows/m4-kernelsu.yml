@@ -1,0 +1,178 @@
+name: M4 KernelSU Next integration
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/m4-kernelsu.yml'
+      - 'configs/kernelsu.fragment'
+      - 'docs/m4-kernelsu.md'
+      - 'manifests/kmi-baseline.txt'
+      - 'manifests/sources.lock'
+      - 'scripts/build-kernel.sh'
+      - 'scripts/m4-integrate-kernelsu.sh'
+      - 'scripts/m4-kmi-digest.py'
+      - 'scripts/tests/test-m4-kernelsu.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m4-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tooling-self-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate scripts
+        run: |
+          bash -n scripts/*.sh scripts/tests/*.sh
+          python3 -m py_compile scripts/m4-kmi-digest.py
+
+      - name: Exercise M4 integration and KMI-digest gates
+        run: scripts/tests/test-m4-kernelsu.sh
+
+  build-kernelsu:
+    needs: tooling-self-test
+    concurrency:
+      group: marble-vps-full-build
+      queue: max
+    runs-on: [self-hosted, linux, x64, marble-builder]
+    timeout-minutes: 120
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Record actual runner resources
+        run: |
+          mkdir -p artifacts
+          {
+            echo '### lscpu'
+            lscpu
+            echo '### memory'
+            free -h
+            echo '### disk'
+            df -hT
+          } | tee artifacts/runner-resources.txt
+
+      - name: Prepare and verify build dependencies
+        shell: bash
+        run: |
+          tool_root="${RUNNER_TOOL_CACHE:-$HOME/.cache}/marble-ci/root"
+          mkdir -p "$tool_root/usr/bin"
+          if ! command -v python >/dev/null 2>&1; then
+            ln -sfn "$(command -v python3)" "$tool_root/usr/bin/python"
+          fi
+          echo "$tool_root/usr/bin" >> "$GITHUB_PATH"
+          export PATH="$tool_root/usr/bin:$PATH"
+
+          if ! command -v cpio >/dev/null 2>&1; then
+            package_dir="$(mktemp -d)"
+            (
+              cd "$package_dir"
+              apt-get download cpio
+              package_file="$(find . -maxdepth 1 -type f -name 'cpio_*.deb' -print -quit)"
+              test -n "$package_file"
+              mkdir -p "$tool_root"
+              dpkg-deb -x "$package_file" "$tool_root"
+            )
+            cpio_bin="$(find "$tool_root" -type f -name cpio -perm -u+x -print -quit)"
+            test -n "$cpio_bin"
+            echo "$(dirname "$cpio_bin")" >> "$GITHUB_PATH"
+            export PATH="$(dirname "$cpio_bin"):$PATH"
+          fi
+          command -v python >/dev/null && python --version
+
+      - name: Fetch pinned ACK source
+        run: scripts/fetch-sources.sh work
+
+      - name: Fetch pinned Android clang toolchain
+        run: scripts/setup-toolchain.sh work
+
+      - name: Source-integrate pinned KernelSU Next
+        run: scripts/m4-integrate-kernelsu.sh work
+
+      - name: Build the baseline plus the KernelSU delta
+        env:
+          BUILD_JOBS: '8'
+          EXTRA_FRAGMENTS: configs/kernelsu.fragment
+        run: scripts/build-kernel.sh work artifacts
+
+      - name: Assert the KernelSU delta is present and deterministic
+        run: |
+          set -euo pipefail
+          grep -qx 'CONFIG_KSU=y' artifacts/config
+          # The in-tree version must be the value derived from the pinned commit.
+          # A shallow clone or a moved pin would change it.
+          grep -F -- '-- KernelSU-Next version: 33214' artifacts/build.log
+          grep -F -- '-- KernelSU-Next tag: v3.3.0' artifacts/build.log
+          if grep -qF 'KSU_GIT_VERSION not defined' artifacts/build.log; then
+            echo 'KernelSU fell back to a placeholder version' >&2
+            exit 1
+          fi
+          # The kernel must actually differ from the M1 baseline, otherwise the
+          # delta silently did not apply.
+          baseline=$(awk -F '|' '$2 == "image_sha256" {print $3}' manifests/kmi-baseline.txt)
+          actual=$(awk -F= '$1 == "image_sha256" {print $2}' artifacts/build-metadata.txt)
+          echo "baseline Image=$baseline"
+          echo "M4       Image=$actual"
+          test "$baseline" != "$actual"
+
+      - name: Assert the frozen KMI surface did not move
+        run: |
+          python3 scripts/m4-kmi-digest.py artifacts/Module.symvers \
+            --expect-manifest manifests/kmi-baseline.txt | tee artifacts/m4-kmi-digest.txt
+
+      - name: Re-run the static KMI gate
+        run: |
+          scripts/verify-kmi.sh artifacts/config manifests/vendor-module-metadata.tsv artifacts/Module.symvers
+          mv kmi-report.txt artifacts/kmi-report.txt
+
+      - name: Re-run the provider-aware stock-module gate against the M4 kernel
+        run: |
+          set -o pipefail
+          python3 scripts/m2-verify-kmi.py \
+            manifests/stock-module-versions.json \
+            manifests/stock-module-providers.json \
+            artifacts/Module.symvers \
+            --report artifacts/m4-kmi-report.json \
+            | tee artifacts/m4-kmi-report.txt
+
+      - name: Inspect output
+        run: scripts/inspect-artifact.sh artifacts
+
+      - name: Upload redistributable M4 artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: marble-m4-ksun-v3.3.0-${{ github.sha }}
+          path: |
+            artifacts/Image
+            artifacts/Image.lz4
+            artifacts/config
+            artifacts/System.map
+            artifacts/Module.symvers
+            artifacts/SHA256SUMS
+            artifacts/build-metadata.txt
+            artifacts/toolchain-version.txt
+            artifacts/runner-resources.txt
+            artifacts/kmi-report.txt
+            artifacts/m4-kmi-digest.txt
+            artifacts/m4-kmi-report.json
+            artifacts/m4-kmi-report.txt
+            artifacts/build.log
+            artifacts/modules-list.txt
+            artifacts/modules-SHA256SUMS
+            artifacts/modules/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 1

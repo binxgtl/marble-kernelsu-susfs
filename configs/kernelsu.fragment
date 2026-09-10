@@ -1,0 +1,19 @@
+# M4 delta on top of the M3-proven baseline. This fragment is applied in
+# addition to baseline.fragment, never instead of it, so every M1/M3 invariant
+# stays exactly as it was in the build that booted the device.
+#
+# Upstream declares `config KSU` as tristate with `default y`, so merely
+# sourcing its Kconfig would switch it on. It is stated explicitly here so the
+# M4 delta is auditable rather than implicit, and so that `=y` (built into the
+# kernel) is chosen deliberately over `=m`.
+#
+# KSU depends on KPROBES and EXT4_FS. Both are already =y in the M1 baseline,
+# so they are deliberately not repeated here: this file must contain the delta
+# and nothing else.
+CONFIG_KSU=y
+
+# Every optional KernelSU behaviour stays off. Manager integration and policy
+# profiles are upstream defaults and are left enabled by leaving these unset.
+# CONFIG_KSU_DEBUG is not set
+# CONFIG_KSU_DISABLE_MANAGER is not set
+# CONFIG_KSU_DISABLE_POLICY is not set
