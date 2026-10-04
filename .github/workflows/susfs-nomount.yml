@@ -1,0 +1,192 @@
+name: SUSFS + NoMount Full LTO
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - '.github/workflows/susfs-nomount.yml'
+      - 'configs/**'
+      - 'manifests/**'
+      - 'scripts/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/susfs-nomount.yml'
+      - 'configs/**'
+      - 'manifests/**'
+      - 'scripts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: susfs-nomount-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-and-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate scripts and feature pins
+        run: |
+          for script in scripts/*.sh scripts/tests/*.sh; do
+            bash -n "$script"
+          done
+          python3 -m py_compile scripts/integrate-features.py scripts/m2-verify-kmi.py scripts/m4-kmi-digest.py
+          python3 scripts/tests/test-features.py
+
+      - name: Re-run historical M4 integration regressions
+        run: scripts/tests/test-m4-kernelsu.sh
+
+  build-full-lto:
+    needs: static-and-regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Record actual GitHub runner resources
+        run: |
+          mkdir -p artifacts
+          {
+            echo '### runner identity'
+            uname -a
+            echo '### CPU'
+            lscpu
+            echo '### memory before swap'
+            free -h
+            echo '### disk'
+            df -hT
+          } | tee artifacts/runner-resources.txt
+
+      - name: Install kernel build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ca-certificates cpio flex git libelf-dev \
+            libncurses-dev libssl-dev lz4 python3 python-is-python3 rsync unzip zip zlib1g-dev
+
+      - name: Add bounded Full LTO swap for the hosted runner
+        run: |
+          swap_file="$RUNNER_TEMP/marble-full-lto.swap"
+          test ! -e "$swap_file"
+          sudo fallocate -l 16G "$swap_file"
+          sudo chmod 600 "$swap_file"
+          sudo mkswap "$swap_file"
+          sudo swapon "$swap_file"
+          free -h | tee -a artifacts/runner-resources.txt
+          df -hT / | tee -a artifacts/runner-resources.txt
+
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install pinned Android NDK and API 30
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install 'ndk;27.2.12479018' 'platforms;android-30'
+          ndk_root="$ANDROID_HOME/ndk/27.2.12479018"
+          grep -qx 'Pkg.Revision = 27.2.12479018' "$ndk_root/source.properties"
+          echo "ANDROID_NDK_ROOT=$ndk_root" >> "$GITHUB_ENV"
+          echo "$ndk_root" >> "$GITHUB_PATH"
+
+      - name: Fetch pinned ACK and Clang sources
+        run: |
+          scripts/fetch-sources.sh work
+          scripts/setup-toolchain.sh work
+
+      - name: Fetch, verify, and integrate pinned KernelSU Next, SUSFS, and NoMount
+        run: |
+          python3 scripts/integrate-features.py \
+            --root work --fetch --report artifacts/integration-report.json
+
+      - name: Build pinned arm64 userspace tools and modules
+        env:
+          BUILD_JOBS: '2'
+        run: scripts/build-userspace.sh work artifacts/userspace
+
+      - name: Build Full LTO kernel on the GitHub-hosted runner
+        env:
+          BUILD_JOBS: '2'
+          EXTRA_FRAGMENTS: configs/kernelsu.fragment configs/features.fragment
+        run: scripts/build-kernel.sh work artifacts
+
+      - name: Verify KSU, SUSFS, NoMount, Full LTO, and strict KMI gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts/verify-features-config.sh artifacts/config
+          grep -qx 'lto_mode=full' artifacts/build-metadata.txt
+          grep -F -- '-- KernelSU-Next version: 33321' artifacts/build.log
+          grep -F -- '-- KernelSU-Next tag: v3.4.0' artifacts/build.log
+          if grep -qF 'KSU_GIT_VERSION not defined' artifacts/build.log; then
+            echo 'KernelSU fell back to a placeholder version' >&2
+            exit 1
+          fi
+
+          strings artifacts/Image | grep -F 'susfs: enable logging to kernel'
+          strings artifacts/Image | grep -F 'susfs is initialized! version: v2.3.0'
+          nomount_archive=work/out/fs/nomount/built-in.a
+          nomount_member=$(work/clang-r416183b/bin/llvm-ar t "$nomount_archive" | grep -E '(^|/)nomount\.o$')
+          test -n "$nomount_member"
+          work/clang-r416183b/bin/llvm-ar p "$nomount_archive" "$nomount_member" | \
+            work/clang-r416183b/bin/llvm-strings | grep -F 'NoMount: Loaded successfully'
+          work/clang-r416183b/bin/llvm-ar p "$nomount_archive" "$nomount_member" | \
+            work/clang-r416183b/bin/llvm-strings | \
+            awk '$0 == "version=20" { found=1 } END { exit !found }'
+
+          python3 scripts/m4-kmi-digest.py artifacts/Module.symvers \
+            --expect-manifest manifests/kmi-baseline.txt \
+            | tee artifacts/full-lto-kmi-digest.txt
+
+          python3 scripts/m2-verify-kmi.py \
+            manifests/stock-module-versions.json \
+            manifests/stock-module-providers.json \
+            artifacts/Module.symvers \
+            --report artifacts/full-lto-stock-kmi-report.json \
+            | tee artifacts/full-lto-stock-kmi-report.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("artifacts/full-lto-stock-kmi-report.json").read_text())
+          summary = report["summary"]
+          assert summary["symbol_requirements_checked"] == 18368, summary
+          assert summary["missing"] == 0, summary
+          assert summary["mismatches"] == 0, summary
+          assert summary["ambiguous_provider_resolutions"] == 0, summary
+          assert summary["invalid_provider_resolutions"] == 0, summary
+          print("Strict stock-provider KMI gate: 18368 requirements, zero failures")
+          PY
+
+          printf '%s\n' \
+            'SUSFS v2.3.0 runtime strings verified in linked Image' \
+            'NoMount v20 built-in object verified in fs/nomount/built-in.a' \
+            'KernelSU Next v3.4.0 / in-tree version 33321 verified in build.log' \
+            'Full LTO, CFI, SCS, MODVERSIONS, and KEYS verified in config' \
+            | tee artifacts/feature-build-evidence.txt
+
+      - name: Upload logs, integration report, and redistributable outputs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: susfs-nomount-full-lto-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            artifacts/
+            work/build.log
+            work/toolchain-version.txt
+            work/out/.config
+            work/out/fs/nomount/built-in.a
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 1

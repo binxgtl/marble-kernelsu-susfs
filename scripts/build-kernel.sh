@@ -38,7 +38,7 @@ make "${make_args[@]}" gki_defconfig
   "$out_dir/.config" configs/baseline.fragment ${EXTRA_FRAGMENTS:-}
 make "${make_args[@]}" olddefconfig
 
-scripts/verify-config.sh "$out_dir/.config"
+scripts/verify-features-config.sh "$out_dir/.config"
 make "${make_args[@]}" -j"$jobs" Image Image.lz4 modules 2>&1 | tee "$root/build.log"
 
 mkdir -p "$artifacts"
@@ -80,7 +80,7 @@ cp "$module_source_list" "$artifacts/modules-list.txt"
 )
 
 kernel_release=$(make -s "${make_args[@]}" kernelrelease)
-lto_mode=$(grep -q '^CONFIG_LTO_CLANG_THIN=y$' "$out_dir/.config" && printf thin || printf full)
+lto_mode=full # verify-features-config.sh requires FULL=y and THIN unset.
 config_sha=$(sha256sum "$out_dir/.config" | awk '{print $1}')
 image_sha=$(sha256sum "$artifacts/Image" | awk '{print $1}')
 image_lz4_sha=$(sha256sum "$artifacts/Image.lz4" | awk '{print $1}')

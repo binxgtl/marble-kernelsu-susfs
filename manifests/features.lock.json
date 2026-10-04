@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "project_base_commit": "d9d2c1e03ee81fa61feb79138c402fb8cc04bc00",
+  "reference_release": "https://github.com/WildKernels/GKI_KernelSU_SUSFS/releases/tag/r21",
+  "reference_release_commit": "e0ecd61219baaa0c3eae821246e31136302fd0dc",
+  "inputs": {
+    "ack": {
+      "url": "https://android.googlesource.com/kernel/common",
+      "commit": "b97c62c4e7d1e80fb6a2cb0cb381f03bbcd26a4e",
+      "directory": "common",
+      "version": "5.10.236"
+    },
+    "clang": {
+      "url": "https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b.git",
+      "commit": "54220fd601050b350b2af7adc913089ebf0e7aed",
+      "directory": "clang-r416183b"
+    },
+    "kernelsu": {
+      "url": "https://github.com/pershoot/KernelSU-Next.git",
+      "commit": "4c5853188012f63a1a1fedd4a57fda6375fecb38",
+      "directory": "KernelSU-Next",
+      "version": "v3.4.0",
+      "commit_count": 3321,
+      "in_tree_version": 33321
+    },
+    "susfs": {
+      "url": "https://gitlab.com/simonpunk/susfs4ksu.git",
+      "commit": "9892175b4acec7ee844e113b8d02c0f4d12cdfac",
+      "directory": "susfs4ksu",
+      "version": "v2.3.0",
+      "files": {
+        "kernel_patches/50_add_susfs_in_gki-android12-5.10.patch": "66ea9b816670cf7ead7d9706a319a3143dcaa7ca15cdb9cf5ed2e6d8539b2a26",
+        "kernel_patches/fs/susfs.c": "5521aa600f6df698e1d5e31df72e3557a36d33c161bd65dcafe5788fb56a7fa7",
+        "kernel_patches/include/linux/susfs.h": "fafff787b8856bd37a6736c2f0bbc5a57fd1f36232be267936f892fb57bc5120",
+        "kernel_patches/include/linux/susfs_def.h": "db7f98dcf8119a4eb5c45c05205b6c1065766047d6f803b0e86f3d14b1a251f0"
+      }
+    },
+    "nomount": {
+      "url": "https://github.com/maxsteeel/nomount.git",
+      "commit": "5a610db7649a59eb3e3d710653618d594941f8da",
+      "directory": "NoMount",
+      "version": "20"
+    }
+  },
+  "lto": "full",
+  "hardware_status": "NOT BUILT / NOT STAGED / NOT TESTED"
+}
