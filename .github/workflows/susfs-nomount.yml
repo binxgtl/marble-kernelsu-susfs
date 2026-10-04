@@ -137,14 +137,14 @@ jobs:
 
           strings artifacts/Image | grep -F 'susfs: enable logging to kernel'
           strings artifacts/Image | grep -F 'susfs is initialized! version: v2.3.0'
+          strings artifacts/Image | grep -F 'NoMount: Loaded successfully'
           nomount_archive=work/out/fs/nomount/built-in.a
           nomount_member=$(work/clang-r416183b/bin/llvm-ar t "$nomount_archive" | grep -E '(^|/)nomount\.o$')
           test -n "$nomount_member"
           work/clang-r416183b/bin/llvm-ar p "$nomount_archive" "$nomount_member" | \
-            work/clang-r416183b/bin/llvm-strings | grep -F 'NoMount: Loaded successfully'
-          work/clang-r416183b/bin/llvm-ar p "$nomount_archive" "$nomount_member" | \
-            work/clang-r416183b/bin/llvm-strings | \
-            awk '$0 == "version=20" { found=1 } END { exit !found }'
+            work/clang-r416183b/bin/llvm-dis -o artifacts/nomount-built-in.ll
+          grep -F 'NoMount: Loaded successfully' artifacts/nomount-built-in.ll
+          grep -F 'nomount.version=20' artifacts/nomount-built-in.ll
 
           python3 scripts/m4-kmi-digest.py artifacts/Module.symvers \
             --expect-manifest manifests/kmi-baseline.txt \
