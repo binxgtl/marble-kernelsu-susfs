@@ -23,6 +23,16 @@ build/KMI gate passes. Stop before hardware and report the exact candidate.
 No flash, partition writes, AVB changes, slot changes or bootloader changes.
 The preceding emergency boot_a restore was a separate, completed authorization.
 
+Subsequent explicit operator authorization on 2026-10-04 permits one persistent
+installation of the already boot-tested image to the current slot's boot_a only:
+SHA256 `9d8ca0df6a00c09f34d93f93bf76ad5c85b8ec3713dfae88b0a8dc344051f5ba`.
+This narrow authorization overrides the preceding flash/stop restrictions for
+that operation only. Retain a validated recovery backup, verify slot/identity,
+and never touch boot_b, other partitions, AVB, active-slot or bootloader state.
+Rebuild the corrected hosted workflow afterwards; do not publish ROM payloads.
+That installation completed and its authorization is consumed. Any subsequent
+flash needs a new explicit operator request for the exact replacement image.
+
 Pin every fetched component to an immutable commit. Do not execute floating
 upstream setup scripts. Record modifications, input hashes, generated config,
 compiler identity and logs. Do not claim build, root, SUSFS or NoMount runtime

@@ -98,3 +98,10 @@ Dependencies are fetched as public source with their original notices retained:
 ACK (GPL-2.0), KernelSU Next, SUSFS and NoMount (upstream GPL-family notices).
 Source repositories, exact commits and the project's modifications must
 accompany redistributed artifacts; no proprietary ROM content is public.
+
+Subsequent build/boot evidence and the narrowly authorized installation are
+recorded in [the 2026-10-04 test record](boot-test-2026-10-04.md). The release
+suffix policy for new builds uses .scmversion to retain the upstream commit
+suffix without dirty. Source modifications remain explicit in the integration
+report and tracked_source_diff_sha256 build metadata; this is not a claim of an
+unmodified upstream kernel.

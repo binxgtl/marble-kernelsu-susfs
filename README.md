@@ -35,10 +35,20 @@ installer or automated device/partition-writing workflow is included.
 NoMount's userspace package and SUSFS's control tool are separate from the kernel.
 Building them does not authorize installing modules or setting hiding rules.
 
-**Status: source patch check passed; kernel build and runtime unproven.**
-Stop before hardware. Any future test needs an exact reviewed candidate and
-operator observation. The emergency restore of the original stock boot was
-completed separately and is not permission to flash this kernel.
+**Status: Full LTO kernel compiled, independent local KMI checks passed, and
+Android boot was observed on marble on 2026-10-04.** KernelSU Next Manager
+reported v3.4.0 built-in Working and SUSFS v2.3.0 Supported. The operator then
+explicitly authorized installation of that same tested image to boot_a;
+Android completed an ordinary boot afterwards with the new kernel.
+This does not establish long-term stability or NoMount redirection/SUSFS hiding
+behavior. Root shell through ADB was not confirmed; the NoMount metamodule was
+not installed during the test. See [the test record](docs/boot-test-2026-10-04.md).
+
+The first CI run's build succeeded but its thin-archive inspection failed before
+KMI ran. Its downloaded Module.symvers independently matched the frozen KMI
+digest and all 18,368 provider-aware requirements. The corrected workflow is
+being rebuilt; the failed run must not be described as an overall CI pass.
+Future hardware operations require explicit authorization for their exact image.
 
 Historical M4 source and records are retained for provenance. Its old workflows
 are archived in `docs/historical-ci/`, so they cannot run accidentally here.

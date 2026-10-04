@@ -9,6 +9,7 @@ out_dir="$root/out"
 
 test -d "$source_dir/.git"
 test -x "$toolchain_dir/bin/clang"
+scripts/pin-kernel-scm.sh "$source_dir"
 
 jobs=${BUILD_JOBS:-2}
 export PATH="$toolchain_dir/bin:$PATH"
@@ -85,9 +86,13 @@ config_sha=$(sha256sum "$out_dir/.config" | awk '{print $1}')
 image_sha=$(sha256sum "$artifacts/Image" | awk '{print $1}')
 image_lz4_sha=$(sha256sum "$artifacts/Image.lz4" | awk '{print $1}')
 source_sha=$(git -C "$source_dir" rev-parse HEAD)
+source_diff_sha=$(git -C "$source_dir" diff --binary HEAD | sha256sum | awk '{print $1}')
 
 {
   printf 'source_sha=%s\n' "$source_sha"
+  printf 'scm_suffix=-g%s\n' "${source_sha:0:12}"
+  printf 'scm_policy=pinned upstream commit; integrated source modifications recorded separately\n'
+  printf 'tracked_source_diff_sha256=%s\n' "$source_diff_sha"
   printf 'kernel_release=%s\n' "$kernel_release"
   printf 'lto_mode=%s\n' "$lto_mode"
   printf 'config_sha256=%s\n' "$config_sha"

@@ -39,7 +39,7 @@ jobs:
           for script in scripts/*.sh scripts/tests/*.sh; do
             bash -n "$script"
           done
-          python3 -m py_compile scripts/integrate-features.py scripts/m2-verify-kmi.py scripts/m4-kmi-digest.py
+          python3 -m py_compile scripts/integrate-features.py scripts/verify-builtin-metadata.py scripts/m2-verify-kmi.py scripts/m4-kmi-digest.py
           python3 scripts/tests/test-features.py
 
       - name: Re-run historical M4 integration regressions
@@ -109,6 +109,9 @@ jobs:
           scripts/fetch-sources.sh work
           scripts/setup-toolchain.sh work
 
+      - name: Test release suffix with the exact ACK setlocalversion script
+        run: scripts/tests/test-kernel-scm.sh work/common/scripts/setlocalversion
+
       - name: Fetch, verify, and integrate pinned KernelSU Next, SUSFS, and NoMount
         run: |
           python3 scripts/integrate-features.py \
@@ -131,6 +134,7 @@ jobs:
           set -euo pipefail
           scripts/verify-features-config.sh artifacts/config
           grep -qx 'lto_mode=full' artifacts/build-metadata.txt
+          grep -qx 'kernel_release=5.10.236-gb97c62c4e7d1' artifacts/build-metadata.txt
           grep -F -- '-- KernelSU-Next version: 33321' artifacts/build.log
           grep -F -- '-- KernelSU-Next tag: v3.4.0' artifacts/build.log
           if grep -qF 'KSU_GIT_VERSION not defined' artifacts/build.log; then
@@ -141,13 +145,8 @@ jobs:
           strings artifacts/Image | grep -F 'susfs: enable logging to kernel'
           strings artifacts/Image | grep -F 'susfs is initialized! version: v2.3.0'
           strings artifacts/Image | grep -F 'NoMount: Loaded successfully'
-          nomount_archive=work/out/fs/nomount/built-in.a
-          nomount_member=$(work/clang-r416183b/bin/llvm-ar t "$nomount_archive" | grep -E '(^|/)nomount\.o$')
-          test -n "$nomount_member"
-          work/clang-r416183b/bin/llvm-ar p "$nomount_archive" "$nomount_member" | \
-            work/clang-r416183b/bin/llvm-dis -o artifacts/nomount-built-in.ll
-          grep -F 'NoMount: Loaded successfully' artifacts/nomount-built-in.ll
-          grep -F 'nomount.version=20' artifacts/nomount-built-in.ll
+          python3 scripts/verify-builtin-metadata.py \
+            work/out/modules.builtin.modinfo work/out/modules.builtin
 
           python3 scripts/m4-kmi-digest.py artifacts/Module.symvers \
             --expect-manifest manifests/kmi-baseline.txt \
@@ -174,7 +173,7 @@ jobs:
 
           printf '%s\n' \
             'SUSFS v2.3.0 runtime strings verified in linked Image' \
-            'NoMount v20 built-in object verified in fs/nomount/built-in.a' \
+            'NoMount v20 verified in post-LTO modules.builtin.modinfo and modules.builtin' \
             'KernelSU Next v3.4.0 / in-tree version 33321 verified in build.log' \
             'Full LTO, CFI, SCS, MODVERSIONS, and KEYS verified in config' \
             | tee artifacts/feature-build-evidence.txt
@@ -189,7 +188,9 @@ jobs:
             work/build.log
             work/toolchain-version.txt
             work/out/.config
-            work/out/fs/nomount/built-in.a
+            work/out/modules.builtin.modinfo
+            work/out/modules.builtin
+            work/common/.scmversion
           if-no-files-found: warn
           retention-days: 14
           compression-level: 1

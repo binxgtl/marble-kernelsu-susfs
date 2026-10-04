@@ -14,9 +14,24 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("features", ROOT / "scripts/integrate-features.py")
 FEATURES = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(FEATURES)
+META_SPEC = importlib.util.spec_from_file_location("metadata", ROOT / "scripts/verify-builtin-metadata.py")
+METADATA = importlib.util.module_from_spec(META_SPEC)
+META_SPEC.loader.exec_module(METADATA)
 
 
 class IntegrationTest(unittest.TestCase):
+    def test_linked_builtin_metadata_rejects_wrong_or_missing_nomount(self):
+        valid = b"other.version=20\0nomount.version=20\0nomount.file=fs/nomount/nomount\0"
+        builtin = "kernel/fs/nomount/nomount.ko\n"
+        METADATA.verify(valid, builtin)
+        for invalid in (b"", valid[:-1], valid.replace(b"nomount.version=20", b"nomount.version=19"),
+                        valid.replace(b"nomount.version=20", b"other.version=20"),
+                        valid.replace(b"nomount.file=fs/nomount/nomount", b"nomount.file=elsewhere")):
+            with self.subTest(metadata=invalid), self.assertRaises(ValueError):
+                METADATA.verify(invalid, builtin)
+        with self.assertRaises(ValueError):
+            METADATA.verify(valid, "kernel/fs/other/nomount.ko\n")
+
     def test_exact_source_pins_and_full_lto(self):
         lock = FEATURES.load_lock(ROOT / "manifests/features.lock.json")
         expected = {
