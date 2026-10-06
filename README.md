@@ -35,20 +35,19 @@ installer or automated device/partition-writing workflow is included.
 NoMount's userspace package and SUSFS's control tool are separate from the kernel.
 Building them does not authorize installing modules or setting hiding rules.
 
-**Status: Full LTO kernel compiled, independent local KMI checks passed, and
-Android boot was observed on marble on 2026-10-04.** KernelSU Next Manager
-reported v3.4.0 built-in Working and SUSFS v2.3.0 Supported. The operator then
-explicitly authorized installation of that same tested image to boot_a;
-Android completed an ordinary boot afterwards with the new kernel.
-This does not establish long-term stability or NoMount redirection/SUSFS hiding
-behavior. Root shell through ADB was not confirmed; the NoMount metamodule was
-not installed during the test. See [the test record](docs/boot-test-2026-10-04.md).
+**Status: The corrected Full LTO workflow passed all jobs, and its nondirty
+kernel booted both temporarily and after installation to `boot_a` on
+2026-10-06.** The installed release is `5.10.236-gb97c62c4e7d1`; its exact
+tested boot SHA256 is `17ded6d89e641725791a1ac237b8aa18f9bf518e26105890f0d94bef71cd39c2`.
+All 18,368 provider-aware stock-module KMI requirements matched. See the
+[nondirty installation record](docs/nondirty-install-2026-10-06.md).
 
-The first CI run's build succeeded but its thin-archive inspection failed before
-KMI ran. Its downloaded Module.symvers independently matched the frozen KMI
-digest and all 18,368 provider-aware requirements. The corrected workflow is
-being rebuilt; the failed run must not be described as an overall CI pass.
-Future hardware operations require explicit authorization for their exact image.
+The prior kernel was also boot-tested and installed on 2026-10-04; its Manager
+reported KernelSU Next v3.4.0 built-in Working and SUSFS v2.3.0 Supported.
+The [earlier test record](docs/boot-test-2026-10-04.md) preserves its evidence
+and first CI run's failure. The current installation does not establish
+long-term stability, root shell through ADB, NoMount redirection or SUSFS
+hiding behavior. Future hardware operations require a fresh exact-image request.
 
 Historical M4 source and records are retained for provenance. Its old workflows
 are archived in `docs/historical-ci/`, so they cannot run accidentally here.

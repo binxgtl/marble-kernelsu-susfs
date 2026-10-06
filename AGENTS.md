@@ -33,6 +33,16 @@ Rebuild the corrected hosted workflow afterwards; do not publish ROM payloads.
 That installation completed and its authorization is consumed. Any subsequent
 flash needs a new explicit operator request for the exact replacement image.
 
+On 2026-10-06 the operator explicitly requested the corrected nondirty kernel
+be installed. Canonical CI `37167145926` at commit
+`54aeb9d60c70a53f1e6b55f79ecb700d45445914` passed. The exact boot image,
+SHA256 `17ded6d89e641725791a1ac237b8aa18f9bf518e26105890f0d94bef71cd39c2`,
+temporarily booted Android and was then flashed only to `boot_a`. Android booted
+with release `5.10.236-gb97c62c4e7d1`, slot `_a`, green verified boot and four
+healthy remoteprocs. This second installation authorization is also consumed;
+see `docs/nondirty-install-2026-10-06.md`. It does not authorize any future
+partition write.
+
 Pin every fetched component to an immutable commit. Do not execute floating
 upstream setup scripts. Record modifications, input hashes, generated config,
 compiler identity and logs. Do not claim build, root, SUSFS or NoMount runtime
